@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Infinity Alchemy: Master Edition</title>
+    <style>
+        :root { --bg: #02040a; --panel: rgba(13, 17, 23, 0.95); --text: #e6edf3; --accent: #79c0ff; --border: #30363d; }
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-tap-highlight-color: transparent; }
+        body { background: var(--bg); color: var(--text); height: 100vh; display: flex; font-family: 'Segoe UI', system-ui, sans-serif; overflow: hidden; }
+        
+        #stars-container { position: absolute; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+        .star { position: absolute; background: #fff; border-radius: 50%; opacity: 0.5; animation: drift linear infinite; }
+        @keyframes drift { 0% { transform: translate(0,0); } 50% { transform: translate(25px, 35px); } 100% { transform: translate(0,0); } }
+
+        #sidebar { width: 320px; background: var(--panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; z-index: 10; backdrop-filter: blur(12px); }
+        header { padding: 25px; border-bottom: 1px solid var(--border); text-align: center; color: var(--accent); font-weight: 800; font-size: 1.3em; letter-spacing: 2px; }
+        
+        #inventory { flex-grow: 1; overflow-y: auto; padding: 15px; display: flex; flex-wrap: wrap; align-content: flex-start; gap: 10px; }
+        .item { padding: 10px 16px; background: #21262d; border: 1px solid var(--border); border-radius: 12px; cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 14px; transition: 0.2s; box-shadow: 0 4px 12px rgba(0,0,0,0.4); }
+        .item:hover { border-color: var(--accent); transform: translateY(-2px); background: #30363d; }
+        
+        #workspace { flex-grow: 1; position: relative; z-index: 5; }
+        .ws-item { position: absolute; cursor: grab; z-index: 5; white-space: nowrap; animation: pop 0.2s ease-out; background: #21262d; padding: 10px 16px; border-radius: 12px; border: 1px solid var(--border); color: white; }
+        @keyframes pop { from { transform: scale(0.7); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+        .controls { padding: 20px; display: flex; flex-direction: column; gap: 10px; background: #161b22; }
+        button { padding: 12px; border-radius: 10px; font-weight: bold; cursor: pointer; border: 1px solid var(--border); transition: 0.3s; background: #21262d; color: white; }
+        .btn-book { background: #238636; border: none; }
+        .btn-reset { color: #f85149; border-color: #f85149; }
+
+        #modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 85%; max-width: 450px; background: #0d1117; border: 2px solid var(--accent); border-radius: 16px; z-index: 1000; padding: 25px; box-shadow: 0 0 60px #000; }
+        .recipe-row { padding: 10px; border-bottom: 1px solid #21262d; display: flex; justify-content: space-between; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <div id="stars-container"></div>
+    <div id="sidebar">
+        <header>ALCHEMY NEXT</header>
+        <div id="inventory"></div>
+        <div class="controls">
+            <button class="btn-book" onclick="toggleBook()">📖 КНИГА РЕЦЕПТОВ</button>
+            <button class="btn-reset" onclick="document.getElementById('workspace').innerHTML=''">ОЧИСТИТЬ ПОЛЕ</button>
+            <button style="font-size:10px; color:#8b949e; background:none; border:none;" onclick="fullReset()">Сбросить прогресс</button>
+        </div>
+    </div>
+    <div id="workspace"></div>
+
+    <div id="modal">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+            <h3 style="color:var(--accent)">ИЗВЕСТНЫЕ РЕЦЕПТЫ</h3>
+            <span style="cursor:pointer; font-size:24px; color:#f85149" onclick="toggleBook()">×</span>
+        </div>
+        <div id=
+
+
+"modal-content" style="max-height:55vh; overflow-y:auto;"></div>
+    </div>
+
+<script>
+    const ICONS = {
+        'Вода':'💧','Огонь':'🔥','Земля':'🌱','Воздух':'💨','Озеро':'🏞️','Океан':'🌊','Вулкан':'🌋','Извержение':'☄️',
+        'Гора':'⛰️','Горный хребет':'🏔️','Ветер':'🌬️','Торнадо':'🌪️','Пар':'☁️','Грязь':'💩','Энергия':'⚡',
+        'Лава':'🌋','Камень':'🪨','Металл':'🤘','Электричество':'🔌','Компьютер':'💻','Интернет':'🌐','ИИ':'🤖','S13':'🏎️'
+    };
+    
+    const RECIPES = {
+        'Земля+Земля':'Гора', 'Гора+Гора':'Горный хребет', 'Вода+Вода':'Озеро', 'Озеро+Озеро':'Океан',
+        'Огонь+Огонь':'Вулкан', 'Вулкан+Вулкан':'Извержение', 'Воздух+Воздух':'Ветер', 'Ветер+Ветер':'Торнадо',
+        'Вода+Огонь':'Пар', 'Земля+Вода':'Грязь', 'Воздух+Огонь':'Энергия', 'Вулкан+Вода':'Лава',
+        'Лава+Воздух':'Камень', 'Камень+Огонь':'Металл', 'Металл+Энергия':'Электричество',
+        'Электричество+Металл':'Компьютер', 'Компьютер+Энергия':'ИИ', 'ИИ+Интернет':'S13', 'Компьютер+Компьютер':'Интернет'
+    };
+
+    let unlocked = JSON.parse(localStorage.getItem('save_vFinal')) || ['Вода', 'Огонь', 'Земля', 'Воздух'];
+
+    function render() {
+        const inv = document.getElementById('inventory');
+        inv.innerHTML = '';
+        unlocked.forEach(n => {
+            const d = document.createElement('div');
+            d.className = 'item'; 
+            d.innerHTML = (ICONS[n] || '✨') + ' ' + n;
+            d.onclick = (e) => spawn(n, e.clientX + 30, e.clientY);
+            inv.appendChild(d);
+        });
+        localStorage.setItem('save_vFinal', JSON.stringify(unlocked));
+    }
+
+    function spawn(name, x, y) {
+        const el = document.createElement('div');
+        el.className = 'ws-item'; 
+        el.dataset.name = name;
+        el.innerHTML = (ICONS[name] || '✨') + ' ' + name;
+        el.style.left = x + 'px'; 
+        el.style.top = y + 'px';
+        
+        el.onmousedown = (e) => {
+            let ox = e.clientX - el.offsetLeft;
+            let oy = e.clientY - el.offsetTop;
+            el.style.zIndex = 1000;
+            document.onmousemove = (ev) => {
+                el.style.left = (ev.clientX - ox) + 'px';
+                el.style.top = (ev.clientY - oy) + 'px';
+            };
+            document.onmouseup = () => {
+                document.onmousemove = null;
+                el.style.zIndex = 5;
+                check(el);
+            };
+        };
+        document.getElementById('workspace').appendChild(el);
+    }
+
+    function check(el) {
+        const items = document.querySelectorAll('.ws-item');
+        items.forEach(other => {
+            if (other === el) return;
+            const r1 = el.getBoundingClientRect();
+            const r2 = other.getBoundingClientRect();
+            if (Math.hypot(r1.left - r2.left, r1.top - r2.top) < 60) {
+                const key = [el.dataset.name, other.dataset.name].sort().join('+');
+                const res = RECIPES[key];
+                if (res) {
+                    spawn(res, el.offsetLeft, el.offsetTop);
+                    el.remove(); other.remove();
+                    if (!unlocked.includes(res)) { unlocked.push(res); render(); }
+                }
+            }
+        });
+    }
+
+    function toggleBook() {
+        const m = document.getElementById('modal');
+        const content = document.getElementById('modal-content');
+        if (m.style.display === 'block') m.style.display = 'none';
+        else {
+            content.innerHTML = '';
+            for (let r in RECIPES) {
+                const p = r.split('+');
+                content.innerHTML += '<div class="recipe-row"><span>' + (ICONS[p[0]]||'✨') + ' ' + p[0] + ' + ' + (ICONS[p[1]]||'✨') + ' ' + p[1] + '</span><span style="color:var(--accent)">➔ ' + (ICONS[RECIPES[r]]||'✨') + ' ' + RECIPES[r] + '</span></div>';
+            }
+            m.style.display = 'block';
+        }
+    }
+
+    function fullReset() {
+        if(confirm("Сбросить всё к началу?")) {
+            localStorage.clear();
+
+
+location.reload();
+        }
+    }
+
+    const sc = document.getElementById('stars-container');
+    for(let i=0; i<80; i++) {
+        const s = document.createElement('div');
+        s.className = 'star';
+        s.style.width = s.style.height = Math.random() * 3 + 'px';
+        s.style.left = Math.random() * 100 + '%';
+        s.style.top = Math.random() * 100 + '%';
+        s.style.animationDuration = (Math.random() * 10 + 5) + 's';
+        sc.appendChild(s);
+    }
+
+    render();
+</script>
+</body>
+</html>
